@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InfoNets Chatbot</title>
+    <!-- Include Tailwind CSS from CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Use the Inter font from Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Include Lucide Icons from CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --bg-color-light: #f3f4f6;
+            --bg-color-dark: #0f172a;
+            --text-color-light: #1f2937;
+            --text-color-dark: #f9fafb;
+            --message-bg-user-light: #3b82f6;
+            --message-bg-user-dark: #3b82f6;
+            --message-bg-bot-light: #ffffff;
+            --message-bg-bot-dark: #1e293b;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color-light);
+            color: var(--text-color-light);
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .dark body {
+            background-color: var(--bg-color-dark);
+            color: var(--text-color-dark);
+        }
+
+        .chat-message.user .message-bubble {
+            background-color: var(--message-bg-user-light);
+            color: white;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .dark .chat-message.user .message-bubble {
+            background-color: var(--message-bg-user-dark);
+        }
+
+        .chat-message.bot .message-bubble {
+            background-color: var(--message-bg-bot-light);
+            color: black;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .dark .chat-message.bot .message-bubble {
+            background-color: var(--message-bg-bot-dark);
+            color: var(--text-color-dark);
+        }
+
+        .typing-dots span {
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+
+        .typing-dots span:nth-child(1) {
+            animation-delay: -0.32s;
+        }
+
+        .typing-dots span:nth-child(2) {
+            animation-delay: -0.16s;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            80%,
+            100% {
+                transform: scale(0);
+            }
+
+            40% {
+                transform: scale(1);
+            }
+        }
+
+        /* Mobile-first sidebar */
+        .sidebar {
+            transform: translateX(-100%);
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .sidebar.open {
+            transform: translateX(0);
+        }
+
+        @media (min-width: 1024px) {
+            .sidebar {
+                transform: translateX(0);
+            }
+        }
+
+        /* Modal styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+    </style>
+</head>
+
+<body class="flex h-screen overflow-hidden">
+    <!-- SVG for the InfoNets logo -->
+    <template id="infonets-logo-template">
+        <img src="InfoNest logo Without Background.png" alt="InfoNets Logo" class="w-8 h-8 mr-2">
+        <defs>
+            <linearGradient id="gradient-book" x1="0%" y1="0%" y2="100%">
+                <stop offset="0%" style="stop-color: #f9a8d4; stop-opacity: 1;" />
+                <stop offset="100%" style="stop-color: #f472b6; stop-opacity: 1;" />
+            </linearGradient>
+            <linearGradient id="gradient-cap" x1="0%" y1="0%" y2="100%">
+                <stop offset="0%" style="stop-color: #63b3ed; stop-opacity: 1;" />
+                <stop offset="100%" style="stop-color: #3b82f6; stop-opacity: 1;" />
+            </linearGradient>
+        </defs>
+        <path d="M30 45 L50 35 L70 45 L70 85 L50 95 L30 85 Z" fill="url(#gradient-book)" stroke="none" />
+        <path d="M30 85 L50 95 L70 85 L50 75 Z" fill="#ec4899" stroke="none" style="opacity: 0.8;" />
+        <path d="M30 45 Q20 55 20 85 L30 85 L30 45 Z" fill="#a5b4fc" stroke="none" style="opacity: 0.5;" />
+        <path d="M70 45 Q80 55 80 85 L70 85 L70 45 Z" fill="#a5b4fc" stroke="none" style="opacity: 0.5;" />
+        <path d="M25 35 L75 35 L75 25 L25 25 Z" fill="url(#gradient-cap)" stroke="none" />
+        <path d="M25 25 L50 15 L75 25 L50 35 Z" fill="url(#gradient-cap)" stroke="none" />
+        <path d="M50 35 L60 45 L55 55 L50 45 Z" fill="#fde047" stroke="none" />
+        <circle cx="50" cy="35" r="3" fill="#fde047" />
+        </svg>
+    </template>
+
+    <!-- Sidebar -->
+    <div id="sidebar"
+        class="sidebar fixed inset-y-0 left-0 lg:relative lg:translate-x-0 w-64 bg-white dark:bg-gray-900 shadow-xl p-4 flex flex-col z-20">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-bold text-gray-800 dark:text-gray-100 flex items-center">
+                <span data-lucide="history" class="mr-2 w-5 h-5 text-indigo-500"></span>Chat History
+            </h2>
+            <button id="close-sidebar-btn"
+                class="lg:hidden p-2 rounded-full text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                <span data-lucide="x"></span>
+            </button>
+        </div>
+        <button id="new-chat-btn"
+            class="flex items-center justify-center w-full p-3 mb-4 bg-indigo-600 text-white font-semibold rounded-xl shadow-lg hover:bg-indigo-700 transition-colors">
+            <span data-lucide="plus-circle" class="mr-2 w-5 h-5"></span>New Chat
+        </button>
+        <div id="conversations-list" class="flex-1 overflow-y-auto space-y-2">
+            <!-- Conversation list will be populated here -->
+        </div>
+    </div>
+
+    <!-- Main Chat Area -->
+    <div class="flex-1 flex flex-col bg-gray-100 dark:bg-gray-800">
+        <header class="bg-white dark:bg-gray-900 shadow-md p-4 flex items-center justify-between z-10">
+            <div class="flex items-center">
+                <button id="open-sidebar-btn"
+                    class="lg:hidden mr-2 p-2 rounded-full text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                    <span data-lucide="menu"></span>
+                </button>
+                <h1 class="text-2xl font-bold flex items-center text-gray-800 dark:text-gray-100">
+                    <!-- InfoNets Logo will be injected here -->
+                    <span id="infonets-logo-container"></span>
+                    InfoNets
+                </h1>
+            </div>
+            <div class="relative">
+                <button id="theme-toggle-btn"
+                    class="p-2 rounded-full text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                    <span data-lucide="monitor" id="theme-icon" class="w-5 h-5 text-indigo-500"></span>
+                </button>
+                <div id="theme-dropdown"
+                    class="hidden absolute right-0 mt-2 w-40 rounded-md shadow-lg bg-white dark:bg-gray-700 ring-1 ring-black ring-opacity-5 z-50">
+                    <div class="py-1" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
+                        <button data-theme="light"
+                            class="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                            <span data-lucide="sun" class="w-4 h-4 mr-2 text-yellow-500"></span>Light
+                        </button>
+                        <button data-theme="dark"
+                            class="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                            <span data-lucide="moon" class="w-4 h-4 mr-2 text-blue-500"></span>Dark
+                        </button>
+                        <button data-theme="system"
+                            class="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                            <span data-lucide="monitor" class="w-4 h-4 mr-2 text-indigo-500"></span>System
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main id="chat-window" class="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+            <!-- Chat messages will be populated here -->
+        </main>
+
+        <footer class="bg-white dark:bg-gray-900 p-4 shadow-top flex items-center gap-4">
+            <label for="file-upload"
+                class="p-3 rounded-full bg-indigo-600 text-white cursor-pointer hover:bg-indigo-700 transition-colors shadow-md">
+                <span data-lucide="upload-cloud" class="w-6 h-6"></span>
+                <input id="file-upload" type="file" class="hidden" accept=".txt,.py,image/*,.pdf" />
+            </label>
+            <form id="chat-form" class="flex-1 flex items-center gap-4">
+                <input type="text" id="chat-input" placeholder="Ask a question..."
+                    class="flex-1 p-3 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner" />
+                <button type="submit" id="send-button"
+                    class="p-3 rounded-full bg-indigo-600 text-white transition-all duration-300 hover:bg-indigo-700 shadow-md">
+                    <span data-lucide="send-horizontal" class="w-6 h-6"></span>
+                </button>
+            </form>
+        </footer>
+    </div>
+    <!-- Modal for renaming chat -->
+    <div id="rename-modal-overlay" class="modal-overlay hidden">
+        <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl w-80">
+            <h3 class="text-lg font-semibold mb-4">Rename Chat</h3>
+            <input id="rename-input" type="text"
+                class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-4" />
+            <div class="flex justify-end space-x-2">
+                <button id="cancel-rename-btn"
+                    class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-200 dark:bg-gray-700 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+                    Cancel
+                </button>
+                <button id="save-rename-btn"
+                    class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition-colors">
+                    Save
+                </button>
+            </div>
+        </div>
+    </div>
+    <script>
+        const chatWindow = document.getElementById('chat-window');
+        const chatForm = document.getElementById('chat-form');
+        const chatInput = document.getElementById('chat-input');
+        const themeToggleBtn = document.getElementById('theme-toggle-btn');
+        const themeDropdown = document.getElementById('theme-dropdown');
+        const themeIcon = document.getElementById('theme-icon');
+        const newChatBtn = document.getElementById('new-chat-btn');
+        const conversationsList = document.getElementById('conversations-list');
+        const openSidebarBtn = document.getElementById('open-sidebar-btn');
+        const closeSidebarBtn = document.getElementById('close-sidebar-btn');
+        const sidebar = document.getElementById('sidebar');
+        const fileUploadInput = document.getElementById('file-upload');
+        const infoNetsLogoContainer = document.getElementById('infonets-logo-container');
+
+        const renameModalOverlay = document.getElementById('rename-modal-overlay');
+        const renameInput = document.getElementById('rename-input');
+        const cancelRenameBtn = document.getElementById('cancel-rename-btn');
+        const saveRenameBtn = document.getElementById('save-rename-btn');
+        let currentRenameConvId = null;
+
+        let messages = [];
+        let loading = false;
+        let conversations = [];
+        let currentConversationId = null;
+
+        // Inject the InfoNets SVG logo
+        const logoTemplate = document.getElementById('infonets-logo-template');
+        const logoClone = logoTemplate.content.cloneNode(true);
+        infoNetsLogoContainer.appendChild(logoClone);
+
+        // This is a helper function to convert ArrayBuffer to base64
+        function arrayBufferToBase64(buffer) {
+            let binary = '';
+            const bytes = new Uint8Array(buffer);
+            const len = bytes.byteLength;
+            for (let i = 0; i < len; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return btoa(binary);
+        }
+
+        // --- Utility Functions ---
+
+        function getTheme() {
+            return localStorage.getItem('theme') || 'system';
+        }
+
+        function setTheme(theme) {
+            localStorage.setItem('theme', theme);
+            applyTheme(theme);
+        }
+
+        function applyTheme(theme) {
+            let isDark;
+            if (theme === 'system') {
+                isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            } else {
+                isDark = theme === 'dark';
+            }
+            document.documentElement.classList.toggle('dark', isDark);
+
+            let iconName, iconColor;
+            switch (theme) {
+                case 'light':
+                    iconName = 'sun';
+                    iconColor = 'text-yellow-500';
+                    break;
+                case 'dark':
+                    iconName = 'moon';
+                    iconColor = 'text-blue-500';
+                    break;
+                case 'system':
+                default:
+                    iconName = 'monitor';
+                    iconColor = 'text-indigo-500';
+                    break;
+            }
+            themeIcon.setAttribute('data-lucide', iconName);
+            themeIcon.classList.remove('text-yellow-500', 'text-blue-500', 'text-indigo-500');
+            themeIcon.classList.add(iconColor);
+
+            if (window.lucide) {
+                lucide.createIcons();
+            }
+        }
+
+        function createMessageElement(message) {
+            const messageContainer = document.createElement('div');
+            messageContainer.classList.add('flex', 'items-start', 'gap-3', 'chat-message', message.sender === 'user' ? 'justify-end' : 'justify-start');
+
+            const messageBubble = document.createElement('div');
+            messageBubble.classList.add('max-w-xs', 'md:max-w-md', 'p-4', 'rounded-3xl', 'shadow-md');
+            messageBubble.classList.add(message.sender === 'user' ? 'bg-blue-500' : 'bg-white', message.sender === 'user' ? 'text-white' : 'text-gray-900', message.sender === 'user' ? 'rounded-br-none' : 'rounded-bl-none');
+            // Fixed the SyntaxError by making sure no empty strings are added to classList
+            if (message.sender === 'user') {
+                messageBubble.classList.add('dark:bg-blue-500');
+            } else {
+                messageBubble.classList.add('dark:bg-gray-700', 'dark:text-gray-100');
+            }
+
+            const iconContainer = document.createElement('div');
+            iconContainer.classList.add('flex-shrink-0');
+            const icon = document.createElement('span');
+            icon.classList.add('w-8', 'h-8', 'text-white', 'p-1', 'rounded-full');
+            icon.setAttribute('data-lucide', message.sender === 'user' ? 'user' : 'bot');
+            icon.classList.add(message.sender === 'user' ? 'bg-gray-500' : 'bg-indigo-600');
+            iconContainer.appendChild(icon);
+
+            // Handle markdown-like formatting for strong and emphasis
+            let formattedText = message.text
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+            // Handle code blocks
+            const codeParts = formattedText.split(/(```[\s\S]+?```)/g);
+            codeParts.forEach(part => {
+                if (part.startsWith('```') && part.endsWith('```')) {
+                    const codeContent = part.slice(3, -3).trim();
+                    const pre = document.createElement('pre');
+                    pre.classList.add('bg-gray-200', 'dark:bg-gray-800', 'text-gray-900', 'dark:text-gray-100', 'p-4', 'rounded-lg', 'overflow-x-auto', 'text-sm', 'my-2');
+                    const code = document.createElement('code');
+                    code.textContent = codeContent;
+                    pre.appendChild(code);
+                    messageBubble.appendChild(pre);
+                } else {
+                    const textNode = document.createElement('div');
+                    textNode.innerHTML = part.replace(/\n/g, '<br />');
+                    messageBubble.appendChild(textNode);
+                }
+            });
+
+            if (message.sender === 'user') {
+                messageContainer.appendChild(messageBubble);
+                messageContainer.appendChild(iconContainer);
+            } else {
+                messageContainer.appendChild(iconContainer);
+                messageContainer.appendChild(messageBubble);
+            }
+
+            return messageContainer;
+        }
+
+        function renderMessages() {
+            chatWindow.innerHTML = '';
+            messages.forEach(msg => {
+                chatWindow.appendChild(createMessageElement(msg));
+            });
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        }
+
+        function createTypingIndicator() {
+            const indicatorContainer = document.createElement('div');
+            indicatorContainer.id = 'typing-indicator';
+            indicatorContainer.classList.add('flex', 'items-start', 'gap-3', 'justify-start');
+
+            const iconContainer = document.createElement('div');
+            iconContainer.classList.add('flex-shrink-0');
+            const icon = document.createElement('span');
+            icon.setAttribute('data-lucide', 'bot');
+            icon.classList.add('w-8', 'h-8', 'text-white', 'bg-indigo-600', 'p-1', 'rounded-full', 'animate-pulse');
+            iconContainer.appendChild(icon);
+
+            const bubble = document.createElement('div');
+            bubble.classList.add('max-w-xs', 'md:max-w-md', 'p-4', 'rounded-3xl', 'shadow-md', 'bg-white', 'text-gray-900', 'dark:bg-gray-700', 'dark:text-gray-100', 'rounded-bl-none');
+            const dots = document.createElement('div');
+            dots.classList.add('flex', 'items-center', 'space-x-2', 'typing-dots');
+            for (let i = 0; i < 3; i++) {
+                const dot = document.createElement('span');
+                dot.classList.add('h-2', 'w-2', 'bg-gray-400', 'rounded-full');
+                dots.appendChild(dot);
+            }
+            bubble.appendChild(dots);
+
+            indicatorContainer.appendChild(iconContainer);
+            indicatorContainer.appendChild(bubble);
+
+            chatWindow.appendChild(indicatorContainer);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        }
+
+        function removeTypingIndicator() {
+            const indicator = document.getElementById('typing-indicator');
+            if (indicator) {
+                indicator.remove();
+            }
+        }
+
+        function saveConversations() {
+            localStorage.setItem('infonets_conversations', JSON.stringify(conversations));
+        }
+
+        function loadConversations() {
+            const savedConversations = localStorage.getItem('infonets_conversations');
+            if (savedConversations) {
+                conversations = JSON.parse(savedConversations);
+                if (conversations.length > 0) {
+                    currentConversationId = conversations[0].id;
+                    messages = conversations[0].messages;
+                }
+            } else {
+                const welcomeMessage = { sender: 'bot', text: 'Hello! I\'m InfoNest - Version 1.0. I am here to assist you with all your queries. How can I help you today? Please feel free to ask me questions related to your department and academic studies.' };
+                messages = [welcomeMessage];
+                conversations = [{ id: Date.now(), title: 'New Chat', messages: [welcomeMessage] }];
+                currentConversationId = conversations[0].id;
+            }
+            renderConversationsList();
+            renderMessages();
+        }
+
+        function renderConversationsList() {
+            conversationsList.innerHTML = '';
+            conversations.forEach(conv => {
+                const convItem = document.createElement('div');
+                convItem.id = `conversation-${conv.id}`;
+                convItem.classList.add('group', 'flex', 'items-center', 'justify-between', 'p-3', 'rounded-lg', 'cursor-pointer', 'transition-colors', 'text-gray-700', 'dark:text-gray-200', 'hover:bg-gray-200', 'dark:hover:bg-gray-700');
+                if (conv.id === currentConversationId) {
+                    convItem.classList.add('bg-indigo-100', 'dark:bg-indigo-800', 'font-semibold');
+                } else {
+                    convItem.classList.add('bg-gray-100', 'dark:bg-gray-800');
+                }
+
+                const convTitle = document.createElement('span');
+                convTitle.textContent = conv.title;
+                convTitle.classList.add('truncate', 'flex-1');
+                convItem.appendChild(convTitle);
+
+                const renameBtn = document.createElement('button');
+                renameBtn.classList.add('p-1', 'rounded-full', 'hover:bg-gray-300', 'dark:hover:bg-gray-600', 'opacity-0', 'group-hover:opacity-100', 'transition-opacity');
+                renameBtn.innerHTML = '<span data-lucide="edit-2" class="w-4 h-4"></span>';
+                renameBtn.title = 'Rename Chat';
+                renameBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showRenameModal(conv.id);
+                });
+                convItem.appendChild(renameBtn);
+
+                convItem.addEventListener('click', () => {
+                    selectConversation(conv.id);
+                });
+                conversationsList.appendChild(convItem);
+            });
+            if (window.lucide) {
+                lucide.createIcons();
+            }
+        }
+
+        function showRenameModal(id) {
+            const convToRename = conversations.find(conv => conv.id === id);
+            if (convToRename) {
+                currentRenameConvId = id;
+                renameInput.value = convToRename.title;
+                renameModalOverlay.classList.remove('hidden');
+                renameInput.focus();
+            }
+        }
+
+        function hideRenameModal() {
+            renameModalOverlay.classList.add('hidden');
+            currentRenameConvId = null;
+        }
+
+        function renameConversation(id, newTitle) {
+            const conversationIndex = conversations.findIndex(conv => conv.id === id);
+            if (conversationIndex !== -1) {
+                conversations[conversationIndex].title = newTitle;
+                renderConversationsList();
+                saveConversations();
+            }
+        }
+
+        function selectConversation(id) {
+            currentConversationId = id;
+            const conversation = conversations.find(conv => conv.id === id);
+            if (conversation) {
+                messages = conversation.messages;
+                renderMessages();
+                renderConversationsList();
+                sidebar.classList.remove('open');
+            }
+        }
+
+        // --- Event Handlers ---
+
+        openSidebarBtn.addEventListener('click', () => {
+            sidebar.classList.add('open');
+        });
+
+        closeSidebarBtn.addEventListener('click', () => {
+            sidebar.classList.remove('open');
+        });
+
+        newChatBtn.addEventListener('click', () => {
+            const newId = Date.now();
+            const welcomeMessage = { sender: 'bot', text: 'Hello! I\'m InfoNest - Version 1.0. I am here to assist you with all your queries. How can I help you today? Please feel free to ask me questions related to your department and academic studies.' };
+            const newConversation = { id: newId, title: 'New Chat', messages: [welcomeMessage] };
+            conversations.unshift(newConversation);
+            currentConversationId = newId;
+            messages = newConversation.messages;
+            renderConversationsList();
+            renderMessages();
+            saveConversations();
+            sidebar.classList.remove('open');
+        });
+
+        themeToggleBtn.addEventListener('click', () => {
+            themeDropdown.classList.toggle('hidden');
+        });
+
+        themeDropdown.addEventListener('click', (e) => {
+            const themeButton = e.target.closest('[data-theme]');
+            if (themeButton) {
+                setTheme(themeButton.dataset.theme);
+                themeDropdown.classList.add('hidden');
+            }
+        });
+
+        window.addEventListener('click', (e) => {
+            if (!themeToggleBtn.contains(e.target) && !themeDropdown.contains(e.target)) {
+                themeDropdown.classList.add('hidden');
+            }
+        });
+
+        cancelRenameBtn.addEventListener('click', hideRenameModal);
+
+        saveRenameBtn.addEventListener('click', () => {
+            if (currentRenameConvId !== null && renameInput.value.trim() !== '') {
+                renameConversation(currentRenameConvId, renameInput.value.trim());
+            }
+            hideRenameModal();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !renameModalOverlay.classList.contains('hidden')) {
+                hideRenameModal();
+            }
+        });
+
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+            if (getTheme() === 'system') {
+                applyTheme('system');
+            }
+        });
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (loading) return;
+
+            const inputMessage = chatInput.value.trim();
+            if (!inputMessage) return;
+
+            const userMessage = { sender: 'user', text: inputMessage };
+            messages.push(userMessage);
+            renderMessages();
+            chatInput.value = '';
+            loading = true;
+            createTypingIndicator();
+
+            const currentConv = conversations.find(conv => conv.id === currentConversationId);
+            if (currentConv && currentConv.messages.length === 2) {
+                currentConv.title = inputMessage.substring(0, 30) + (inputMessage.length > 30 ? '...' : '');
+                renderConversationsList();
+            }
+            saveConversations();
+
+            const chatHistory = messages.map(msg => ({
+                role: msg.sender === 'user' ? 'user' : 'model',
+                parts: [{ text: msg.text }]
+            }));
+
+            const systemInstruction = {
+                role: "user",
+                parts: [{
+                    text: `You are InfoNets, a helpful and knowledgeable chatbot for Charotar University of Science and Technology (CHARUSAT) and specifically for the Devang Patel Institute of Advance Technology and Research (DEPSTAR). Your primary purpose is to act as a study assistant and department guide. You can answer questions related to department policies, courses, academic matters, and other general inquiries. You can also help students with study-related doubts in subjects like Computer Science, Mathematics, Physics, and others. The three departments at DEPSTAR are:
+                    - Computer Science and Engineering (CSE or CS)
+                    - Computer Engineering (CE)
+                    - Information Technology (IT)
+                    When asked a study-related question, provide a clear and detailed answer, including code examples, formulas, or explanations as needed. If a question is outside of this scope (e.g., about personal advice or unrelated topics), you must politely and professionally decline to answer. Always maintain a professional and supportive tone.`
+                }]
+            };
+
+            const payload = {
+                contents: [
+                    { role: "user", parts: [{ text: systemInstruction.parts[0].text }] },
+                    ...chatHistory,
+                ],
+            };
+
+            // 🐛 IMPORTANT: You need to replace the empty string below with your actual API key from Google AI Studio.
+            // Go to https://aistudio.google.com/ and create a new API key.
+            const apiKey = "AIzaSyDnjOb8KGpy96jEZDWPO6EbR6NtT0xAtNE";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    const botResponse = result.candidates[0].content.parts[0].text;
+                    messages.push({ sender: 'bot', text: botResponse });
+                } else {
+                    messages.push({ sender: 'bot', text: "Sorry, I couldn't get a response. Please try again." });
+                }
+            } catch (error) {
+                console.error('Error fetching from API:', error);
+                messages.push({ sender: 'bot', text: 'An error occurred. Please try again.' });
+            } finally {
+                removeTypingIndicator();
+                loading = false;
+                renderMessages();
+                saveConversations();
+            }
+        });
+
+        fileUploadInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            let fileData = null;
+            let fileText = null;
+            let base64ImageData = null;
+            let userMessageText = `Uploaded document: ${file.name}. `;
+            let botResponseText = null;
+            const mimeType = file.type;
+
+            if (mimeType.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    fileData = event.target.result;
+                    base64ImageData = fileData.split(',')[1];
+                    userMessageText += "Generating a description...";
+                    handleFileRequest(userMessageText, base64ImageData, mimeType);
+                };
+                reader.readAsDataURL(file);
+            } else if (mimeType === 'application/pdf') {
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    fileData = event.target.result;
+                    userMessageText += "Extracting text and generating a summary...";
+                    try {
+                        const pdfjsLib = window['pdfjs-dist/build/pdf'];
+                        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+                        const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(fileData) });
+                        const pdf = await loadingTask.promise;
+                        let textContent = '';
+                        for (let i = 1; i <= pdf.numPages; i++) {
+                            const page = await pdf.getPage(i);
+                            const text = await page.getTextContent();
+                            textContent += text.items.map(item => item.str).join(' ');
+                        }
+                        handleFileRequest(userMessageText, null, null, textContent);
+                    } catch (error) {
+                        console.error("PDF extraction failed:", error);
+                        const updatedMessages = [...messages, { sender: 'bot', text: `An error occurred while extracting text from your PDF: ${error.message}` }];
+                        messages = updatedMessages;
+                        renderMessages();
+                        loading = false;
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            } else if (mimeType === 'text/plain' || file.name.endsWith('.py') || file.name.endsWith('.js')) {
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    fileData = event.target.result;
+                    userMessageText += "Generating a summary...";
+                    handleFileRequest(userMessageText, null, null, fileData);
+                };
+                reader.readAsText(file);
+            } else {
+                alert('Unsupported file type. Please upload a PDF, image, or text file.');
+            }
+        });
+
+        async function handleFileRequest(userMessageText, imageData, mimeType, fileText) {
+            const userMessage = { sender: 'user', text: userMessageText };
+            messages.push(userMessage);
+            renderMessages();
+            loading = true;
+            createTypingIndicator();
+
+            const currentConv = conversations.find(conv => conv.id === currentConversationId);
+            if (currentConv && currentConv.messages.length === 2) {
+                currentConv.title = userMessageText.substring(0, 30) + (userMessageText.length > 30 ? '...' : '');
+                renderConversationsList();
+            }
+            saveConversations();
+
+            try {
+                // 🐛 IMPORTANT: You need to replace the empty string below with your actual API key from Google AI Studio.
+                // Go to https://aistudio.google.com/ and create a new API key.
+                const apiKey = "AIzaSyDnjOb8KGpy96jEZDWPO6EbR6NtT0xAtNE";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+                let parts = [];
+                if (imageData) {
+                    parts.push({ text: `Describe this image: ${userMessageText}` });
+                    parts.push({ inlineData: { mimeType: mimeType, data: imageData } });
+                } else if (fileText) {
+                    parts.push({ text: `Summarize the following document:\n\n${fileText}` });
+                }
+
+                const payload = { contents: [{ role: 'user', parts: parts }] };
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`API call failed with status: ${response.status}. Error: ${errorText}`);
+                }
+
+                const result = await response.json();
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    botResponseText = result.candidates[0].content.parts[0].text;
+                } else {
+                    botResponseText = "Sorry, I couldn't process the file. Please try again.";
+                }
+            } catch (error) {
+                console.error("Document processing failed:", error);
+                botResponseText = `An error occurred while processing your document: ${error.message}`;
+            } finally {
+                removeTypingIndicator();
+                const updatedMessages = [...messages, { sender: 'bot', text: botResponseText }];
+                messages = updatedMessages;
+                conversations = conversations.map(conv => conv.id === currentConversationId ? { ...conv, messages: updatedMessages } : conv);
+                loading = false;
+                renderMessages();
+                saveConversations();
+            }
+        }
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const welcomeMessage = { sender: 'bot', text: 'Hello! I\'m InfoNest - Version 1.0. I am here to assist you with all your queries. How can I help you today? Please feel free to ask me questions related to your department and academic studies.' };
+            const savedConversations = localStorage.getItem('infonets_conversations');
+            if (savedConversations) {
+                conversations = JSON.parse(savedConversations);
+            } else {
+                conversations = [{ id: Date.now(), title: 'New Chat', messages: [welcomeMessage] }];
+            }
+            if (conversations.length > 0) {
+                currentConversationId = conversations[0].id;
+                messages = conversations[0].messages;
+            } else {
+                conversations = [{ id: Date.now(), title: 'New Chat', messages: [welcomeMessage] }];
+                currentConversationId = conversations[0].id;
+                messages = conversations[0].messages;
+            }
+
+            renderConversationsList();
+            renderMessages();
+
+            const savedTheme = getTheme();
+            applyTheme(savedTheme);
+
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+                if (getTheme() === 'system') {
+                    applyTheme('system');
+                }
+            });
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        });
+    </script>
+</body>
+
+</html>
